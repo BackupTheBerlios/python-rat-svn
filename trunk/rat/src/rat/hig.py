@@ -31,7 +31,10 @@ Sometimes you want to manipulate the dialog before running it::
 __license__ = "MIT <http://www.opensource.org/licenses/mit-license.php>"
 __author__ = "Tiago Cogumbreiro <cogumbreiro@users.sf.net>"
 __copyright__ = "Copyright 2005, Tiago Cogumbreiro"
-
+__all__ = ("HigProgress", "RunDialog", "SetupDialog", "SetupLabel",
+           "SetupScrolledWindow", "WidgetCostumizer", "dialog_error",
+           "dialog_ok_cancel", "dialog_warn", "dialog_alert", "humanize_seconds",
+           "save_changes", "hig_alert")
 
 import gobject
 import gtk
@@ -76,9 +79,8 @@ class WidgetCostumizer:
     """
     The WidgetCostumizer is a class template for defining chaining of asseblies
     of interfaces. For example you can create a dialog with this simple lines of
-    code:
-
-        
+    code::
+    
         creator.bind (SetupDialog()).bind (SetupAlert (primary_text, secondary_text, **kwargs))
         dlg = creator ()
     
@@ -247,7 +249,7 @@ class SetupAlert (WidgetCostumizer):
         lbl = SetupLabel(secondary_text) ()
         lbl.show ()
         dialog.set_secondary_text = lbl.set_text
-        vbox.pack_start (lbl, False, False)
+        vbox.pack_end (lbl, False, False)
         
         return dialog, vbox
 
@@ -326,19 +328,33 @@ def hig_alert (primary_text, secondary_text, parent = None, flags = 0, buttons =
         costumizer.bind (RunDialog ())
     return costumizer (dlg)
 
-def humanize_seconds (elapsed_seconds):
+def humanize_seconds (elapsed_seconds, use_hours = True, use_days = True):
     """
-    The elapsed_time must be in seconds
+    Turns a number of seconds into to a human readable string, example
+    125 seconds is: '2 minutes and 5 seconds'.
+    
+    @param elapsed_seconds: number of seconds you want to humanize
+    @param use_hours: wether or not to render the hours (if hours > 0)
+    @param use_days: wether or not to render the days (if days > 0)
     """
-    HOUR_FRACTION = 360
     MIN_FRACTION = 60
+    HOUR_FRACTION = 60 * MIN_FRACTION
+    DAY_FRACTION = 24 * HOUR_FRACTION
     
     text = []
     
     duration = elapsed_seconds
-
+    
+    if duration == 0:
+        return _("0 seconds")
+    
+    days = duration / DAYS_FRACTION
+    if use_days and days > 0:
+        text.append (N_("%d day", "%d days", days) % days)
+        duration %= DAY_FRACTION
+        
     hours = duration / HOUR_FRACTION
-    if hours > 0:
+    if use_hours and hours > 0:
         text.append (N_("%d hour", "%d hours", hours) % hours)
         duration %= HOUR_FRACTION
     
@@ -387,11 +403,10 @@ def save_changes (files, last_save = None, parent = None, document = _("document
     Shows up a Save changes dialog to a certain list of documents and returns
     a tuple with two values, the first is a list of files that are to be saved
     the second is the value of the response, which can be one of:
-    
-     * gtk.RESPONSE_OK - the user wants to save
-     * gtk.RESPONSE_CANCEL - the user canceled the dialog
-     * gtk.RESPONSE_CLOSE - the user wants to close without saving
-     * gtk.RESPONSE_DELETE_EVENT - the user closed the window
+      - gtk.RESPONSE_OK - the user wants to save
+      - gtk.RESPONSE_CANCEL - the user canceled the dialog
+      - gtk.RESPONSE_CLOSE - the user wants to close without saving
+      - gtk.RESPONSE_DELETE_EVENT - the user closed the window
     
     So if you want to check if the user canceled just check if the response is
     equal to gtk.RESPONSE_CANCEL or gtk.RESPONSE_DELETE_EVENT
@@ -406,8 +421,22 @@ def save_changes (files, last_save = None, parent = None, document = _("document
     to know which files were saved since the dialog changes is structure
     depending on the arguments.
     
-    Simple usage example:
-    files_to_save, response = save_changes (["foo.bar"])
+    Simple usage example::
+        files_to_save, response = save_changes (["foo.bar"])
+
+    @param files: a list of filenames to be saved
+    @param last_save: when you only want to save one file you can optionally
+        send the date of when the user saved the file most recently.
+        
+    @type last_save: datetime.datetime
+    @param parent: the window that will be parent of this window.
+    @param document: the name of the document in the singular form. Default: 'document'
+    @param documents: the name of the document in the plural form. Default: 'documents'
+
+    @param kwargs: the remaining keyword arguments are the same as used on the function
+        hig_alert.
+    @return: a tuple with a list of entries the user chose to save and a gtk.RESPONSE_*
+        from the dialog
     """
     # Override the `run` argument
     if "run" in kwargs:
@@ -604,7 +633,7 @@ class HigProgress (gtk.Window):
         return True
         
 if __name__ == '__main__':
-    print save_changes (["foo", "bar"])
+    print save_changes (["foo", "bar"], title="goo")
     print dialog_ok_cancel ("Rat will simplify your code",
                             ("By putting common utilities in one place all "
                              "benefit and get nicer apps.")) 

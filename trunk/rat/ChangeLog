@@ -1,0 +1,15 @@
+2005-11-2 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
+	* src/rat/gwp.py:
+	Corrected the FileChooser problems in the correct way, which means that
+	gwp.Data is aware of lazy getters, use the keyword 'is_lazy' and set it
+	to 'True' when creating it.
+	Improved documentation.
+	Reworked on bits of gwp.Data.
+	Corrected the file_chooser_button.
+	Now uses gwp.OutOfSyncError to point possible gwp.Data problems.
+
+	* src/rat/hig.py:
+	Improved documentation.
+	'humanize_seconds' now supports the optional display of hours and days.
+

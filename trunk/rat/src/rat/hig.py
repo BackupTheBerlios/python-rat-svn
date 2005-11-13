@@ -1,4 +1,4 @@
-"""
+__doc__ = """
 The HIG module offers a set of utility functions and widgets to implement
 HIG compliant interfaces.
 
@@ -75,6 +75,16 @@ dialog_ok_cancel = \
             ),
             **kwargs)
 
+dialog_info = \
+    lambda primary_text, secondary_text, **kwargs:\
+        hig_alert (
+            primary_text,
+            secondary_text,
+            stock = gtk.STOCK_DIALOG_INFO,
+            buttons = (gtk.STOCK_CLOSE, gtk.RESPONSE_OK),
+            **kwargs
+        )
+
 class WidgetCostumizer:
     """
     The WidgetCostumizer is a class template for defining chaining of asseblies
@@ -145,11 +155,13 @@ class SetupScrolledWindow (WidgetCostumizer):
         
 class SetupLabel (WidgetCostumizer):
     """
-    Usage:
+    Usage::
 
         lbl = SetupLabel("<b>foo</b>") (gtk.Label())
         lbl.show ()
-    Or:
+        
+    Or::
+    
         lbl = SetupLabel("<b>foo</b>") ()
         lbl.show ()
     
@@ -530,7 +542,7 @@ class HigProgress (gtk.Window):
         self.set_title ('')
         # defaults to center location
         self.set_position (gtk.WIN_POS_CENTER)
-        self.connect ("delete-event", self.__on_close)
+        self.connect ("delete-event", self._on_close)
         
         # main container
         main = gtk.VBox (spacing = 12)
@@ -544,18 +556,18 @@ class HigProgress (gtk.Window):
         alg.set_padding (0, 6, 0, 0)
         alg.show()
         main.pack_start (alg, False, False)
-        lbl = hig_label()
+        lbl = SetupLabel()()
         lbl.set_selectable (False)
         lbl.show()
-        self.__primary_label = lbl
+        self._primary_label = lbl
         alg.add (lbl)
         
         # secondary text
-        lbl = hig_label()
+        lbl = SetupLabel()()
         lbl.set_selectable (False)
         lbl.show()
         main.pack_start (lbl, False, False)
-        self.__secondary_label = lbl
+        self._secondary_label = lbl
         
         # Progress bar
         vbox = gtk.VBox()
@@ -564,13 +576,13 @@ class HigProgress (gtk.Window):
         
         prog = gtk.ProgressBar ()
         prog.show()
-        self.__progress_bar = prog
+        self._progress_bar = prog
         vbox.pack_start (prog, expand = False)
         
-        lbl = hig_label ()
+        lbl = SetupLabel()()
         lbl.set_selectable (False)
         lbl.show ()
-        self.__sub_progress_label = lbl
+        self._sub_progress_label = lbl
         vbox.pack_start (lbl, False, False)
         
         # Buttons box
@@ -582,7 +594,7 @@ class HigProgress (gtk.Window):
         cancel = gtk.Button (gtk.STOCK_CANCEL)
         cancel.set_use_stock (True)
         cancel.show ()
-        self.__cancel = cancel
+        self._cancel = cancel
         bbox.add (cancel)
         main.add (bbox)
         
@@ -591,40 +603,45 @@ class HigProgress (gtk.Window):
         close.set_use_stock (True)
         close.hide ()
         bbox.add (close)
-        self.__close = close
+        self._close = close
         
-    primary_label = property (lambda self: self.__primary_label)
-    secondary_label = property (lambda self: self.__secondary_label)
-    progress_bar = property (lambda self: self.__progress_bar)
-    sub_progress_label = property (lambda self: self.__sub_progress_label)
-    cancel_button = property (lambda self: self.__cancel)
-    close_button = property (lambda self: self.__close)
+    primary_label = property (lambda self: self._primary_label)
+    secondary_label = property (lambda self: self._secondary_label)
+    progress_bar = property (lambda self: self._progress_bar)
+    sub_progress_label = property (lambda self: self._sub_progress_label)
+    cancel_button = property (lambda self: self._cancel)
+    close_button = property (lambda self: self._close)
     
-    def primary_text (self, text):
+    def set_primary_text (self, text):
         self.primary_label.set_markup ('<span weight="bold" size="larger">'+text+'</span>')
         self.set_title (text)
     
-    primary_text = property (fset = primary_text)
+    primary_text = property (fset = set_primary_text)
         
-    def secondary_text (self, text):
+    def set_secondary_text (self, text):
         self.secondary_label.set_markup (text)
     
-    secondary_text = property (fset = secondary_text)
+    secondary_text = property (fset = set_secondary_text)
     
-    def progress_fraction (self, fraction):
+    def set_progress_fraction (self, fraction):
         self.progress_bar.set_fraction (fraction)
     
-    progress_fraction = property (fset = progress_fraction)
+    def get_progress_fraction (self):
+        return self.progress_bar.get_fraction()
+        
+    progress_fraction = property (get_progress_fraction, set_progress_fraction)
     
-    def progress_text (self, text):
+    def set_progress_text (self, text):
         self.progress_bar.set_text (text)
-    progress_text = property (fset = progress_text)
+
+    progress_text = property (fset = set_progress_text)
     
-    def sub_progress_text (self, text):
+    def set_sub_progress_text (self, text):
         self.sub_progress_label.set_markup ('<i>'+text+'</i>')
-    sub_progress_text = property (fset = sub_progress_text)
+        
+    sub_progress_text = property (fset = set_sub_progress_text)
     
-    def __on_close (self, *args):
+    def _on_close (self, *args):
         if not self.cancel_button.get_property ("sensitive"):
             return True
         # click on the cancel button

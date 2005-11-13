@@ -1,14 +1,17 @@
 __license__ = "MIT <http://www.opensource.org/licenses/mit-license.php>"
 __author__ = "Tiago Cogumbreiro <cogumbreiro@users.sf.net>"
 __copyright__ = "Copyright 2005, Tiago Cogumbreiro"
+__doc__ = """
+This module contains usefull functions like widget navigation and
+list store creation.
+"""
 
 import gtk
 import gobject
 
 class ListSpec:
     """
-    A spec is used to create `gtk.ListStore`s and to help 
-    This class is used to help the manipulation of `gtk.ListStore`s.
+    This class is used to help the manipulation of C{gtk.ListStore}s.
     Here's an example on how to create one::
 
         my_spec = ListSpec (
@@ -33,14 +36,16 @@ class ListSpec:
         store.append (my_spec.to_tree_row (row))
         
     To access a column on a given row::
+    
         for row in store:
             print "State:", row[my_spec.STATE]
             print "Filename:", row[my_spec.FILENAME]
     
-    So here are it's features:
-     * helps you centralize the specs of a given ListStore
-     * makes your code more readable and less error-prone thanks to the
+    So here are its features:
+     - helps you centralize the specs of a given C{gtk.ListStore}
+     - makes your code more readable and less error-prone thanks to the
        created constants
+       
     """
     def __init__ (self, *columns):
         names = []
@@ -55,55 +60,25 @@ class ListSpec:
         self.__gtypes = tuple (gtypes)
         
     def create_list_store (self):
-        """Creates a new `gtk.ListStore`"""
+        """Creates a new C{gtk.ListStore}
+        @rtype: C{gtk.ListStore}
+        """
         return gtk.ListStore (*self.__gtypes)
     
     def to_tree_row (self, mapping):
         """
-        Converts a `dict` like object to a list suitable for adding to a 
-        `gtk.ListStore`.
+        Converts a L{dict} like object to a list suitable for adding to a 
+        C{gtk.ListStore}.
+        
+        @rtype: C{ListType}
         """
         keys = mapping.keys ()
         keys.sort()
         return [mapping[key] for key in keys]
 
-class SimpleListWrapper:
-    def __init__ (self, store):
-        self.store = store
-        
-    def __getitem__ (self, index):
-        return self.store[index][0]
-        
-    def append (self, item):
-        self.store.append ([item])
-
-class SimpleList (gtk.TreeView):
-    def __init__ (self, column_title, editable = True):
-        gtk.TreeView.__init__(self)
-        store = gtk.ListStore(str)
-        self.set_model (store)
-        r = gtk.CellRendererText()
-        if editable:
-            r.set_property ('editable', True)
-            r.connect ('edited', self.__on_text_edited)
-            
-        if not column_title:
-            self.set_headers_visible (False)
-            column_title = ""
-        col = gtk.TreeViewColumn(column_title, r, text = 0)
-        self.append_column (col)
-        self.wrapper = SimpleListWrapper (store)
-        
-    def get_simple_store(self):
-        return self.wrapper
-    
-    def __on_text_edited (self, cell, path, new_text, user_data = None):
-        self.get_model()[path][0] = new_text
-
-gobject.type_register (SimpleList)
-
-def iterate_all_children (widget):
-        
+def _simple_iterate_widget_children (widget):
+    """This function iterates all over the widget children.
+    """
     get_children = getattr (widget, "get_children", None)
 
     if get_children is None:
@@ -122,98 +97,120 @@ def iterate_all_children (widget):
     if sub_menu is not None:
         yield sub_menu
 
+class _IterateWidgetChildren:
+    """This iterator class is used to recurse to child widgets, it uses
+    the _simple_iterate_widget_children function
+    
+    """
+    def __init__ (self, widget):
+        self.widget = widget
+        self.children_widgets = iter (_simple_iterate_widget_children (self.widget))
+        self.next_iter = None
+        
+    def next (self):
+        if self.next_iter is None:
+            widget = self.children_widgets.next ()
+            self.next_iter = _IterateWidgetChildren (widget)
+            return widget
+            
+        else:
+            try:
+                return self.next_iter.next ()
+            except StopIteration:
+                self.next_iter = None
+                return self.next ()
 
-def print_widget_tree (widget, depth = 0):
+    def __iter__ (self):
+        return self
+        
+def iterate_widget_children (widget, recurse_children = False):
+    """
+    This function is used to iterate over the children of a given widget.
+    You can recurse to all the widgets contained in a certain widget.
+    
+    @param widget: The base widget of iteration
+    @param recurse_children: Wether or not to iterate recursively, by iterating
+        over the children's children.
+    
+    @return: an iterator
+    @rtype: C{GeneratorType}
+    """
+    if recurse_children:
+        return _IterateWidgetChildren (widget)
+    else:
+        return iter (_simple_iterate_widget_children (widget))
 
-    for child in iterate_all_children (widget):
-        print ("  " * depth) + child.get_name ()
-        print_widget_tree (child, depth + 1)
+def iterate_widget_parents (widget):
+    """Iterate over the widget's parents.
 
-def find_widget_up (widget, name):
-    """Finds a widget by name upwards the tree, by searching self and its
-    parents"""
+    @param widget: The base widget of iteration
+    @return: an iterator
+    @rtype: C{GeneratorType}
+    """
+    
+    widget = widget.get_parent ()
+    while widget is not None:
+        yield widget
+        widget = widget.get_parent ()
+
+def find_parent_widget (widget, name, find_self=True):
+    """
+    Finds a widget by name upwards the tree, by searching self and its parents
+    
+    @return: C{None} when it didn't find it, otherwise a C{gtk.Container}
+    @rtype: C{gtk.Container}
+    @param find_self: Set this to C{False} if you want to only find on the parents
+    @param name: The name of the widget
+    @param widget: The widget where this function will start searching
+    """
     
     assert widget is not None
-    
-    if widget.get_name () == name:
+
+    if find_self and widget.get_name () == name:
         return widget
-    
-    parent = widget.get_parent ()
-    if parent is not None:
-        return find_widget (parent, name)
-    
+
+    for w in iterate_widget_parents (widget):
+        if w.get_name () == name:
+            return w
+
     return None
 
-def find_widget (widget, name):
-    """Finds the widget by name downwards the tree, by searching self and its
-    children."""
+def find_child_widget (widget, name, find_self=True):
+    """
+    Finds the widget by name downwards the tree, by searching self and its
+    children.
+
+    @return: C{None} when it didn't find it, otherwise a C{gtk.Widget}
+    @rtype: C{gtk.Widget}
+    @param find_self: Set this to L{False} if you want to only find on the children
+    @param name: The name of the widget
+    @param widget: The widget where this function will start searching
+    """
     
     assert widget is not None
     
-    if widget.get_name () == name:
+    if find_self and widget.get_name () == name:
         return widget
-        
-    get_children = getattr (widget, "get_children", None)
-
-    if get_children is None:
-        return None
     
-    for child in get_children ():
-        w = find_widget (child, name)
-        if w is not None:
+    for w in iterate_widget_children (widget, True):
+
+        if name == w.get_name ():
             return w
     
-    get_submenu = getattr (widget, "get_submenu", None)
-    
-    if get_submenu is None:
-        return None
-    
-    sub_menu = get_submenu ()
-    
-    if sub_menu is not None:
-        return find_widget (sub_menu, name)
-    
     return None
 
+        
+
 def get_root_parent (widget):
-    assert widget is not None
-    p = widget.get_parent ()
-    if not p:
-        return widget
-    return get_root_parent (p)
+    """Returns the first widget of a tree. If this widget has no children
+    it will return C{None}
+    
+    @return: C{None} when there is no parent widget, otherwise a C{gtk.Container}
+    @rtype: C{gtk.Container} 
+    """
+    parents = list(iterate_widget_parents (widget))
+    if len (parents) == 0:
+        return None
+    else:
+        return parents[-1]
 
-import traceback
-def traceback_main_loop ():
-    idle_add = gobject.idle_add
-    
-    def tb_idle_add (callback, *args, **kwargs):
-        def wrapper (*args, **kwargs):
-            try:
-                return callback (*args, **kwargs)
-            except:
-                traceback.print_exc ()
-        
-        return idle_add (wrapper, *args, **kwargs)
-    gobject.idle_add = tb_idle_add
-    gobject.idle_add.idle_add = idle_add
-    
-    timeout_add = gobject.timeout_add
-    
-    def tb_timeout_add (interval, callback, *args, **kwargs):
-        def wrapper (*args, **kwargs):
-            try:
-                return callback (*args, **kwargs)
-            except:
-                traceback.print_exc ()
-        
-        return timeout_add (interval, wrapper, *args, **kwargs)
-        
-    gobject.timeout_add = tb_timeout_add
-    gobject.timeout_add.timeout_add = timeout_add
-
-def untraceback_main_loop ():
-    if hasattr (gobject.idle_add, "idle_add"):
-        gobject.idle_add = gobject.idle_add.idle_add
-        
-    if hasattr (gobject.timeout_add, "timeout_add"):
-        gobject.timeout_add = gobject.timeout_add.timeout_add

@@ -169,7 +169,9 @@ class TestController (unittest.TestCase):
         self.assertTrue (self.is_sensitive ())
 
 
+def main():
+    unittest.main ()
+
 if __name__ == '__main__':
-    unittest.main ()        
-        
-        
+    main()
+

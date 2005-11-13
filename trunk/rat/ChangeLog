@@ -1,3 +1,35 @@
+2005-11-13 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
+	* src/rat/gwp.py:
+	Corrected a little bug at an exception sometimes thrown when the object
+        was garbage collected.
+	Corrected a bug when trying to unset the callback.
+	Added OutOfSyncError exception.
+	
+	* src/rat/hig.py:
+	Added a new function 'dialog_info'. Works like 'dialog_warn'.
+	Improved documentation.
+	Started correcting the code-style.
+	Corrected a bug on HigProgress, which was still referencing the old
+	hig_label.
+	
+	* src/rat/sensitive.py:
+	Removed the __all__ varible and added the underscore in classes/functions
+	to mark them as private.
+	Improved documentation.
+
+	* src/rat/testgwp.py:
+	* src/rat/testutil.py:
+	* src/rat/tests.py:
+	Added test cases.
+
+	* src/rat/util.py:
+	Removed SimpleList*. Improved widget iteration.
+	Removed traceback*. Removed print_widget_tree.
+	Renamed 'find_widget' to 'find_child_widget'. Renamed 'find_widget_up' to
+	'find_parent_widget'.
+	Added the possibility to iterate recursively or not into widget children.
+
 2005-11-2 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
 
 	* src/rat/gwp.py:

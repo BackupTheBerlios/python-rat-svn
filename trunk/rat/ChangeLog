@@ -1,3 +1,31 @@
+2006-01-12 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
+    * src/rat/testsensitive.py:
+    tests.py was renamed to testsensitive.py
+    
+    * src/rat/swp.py:
+    Storage Widget Persistency module was created, which is basically
+    a generalization of gwp, by allowing to plug different backends and
+    using the same API for it.
+    
+    * src/rat/gwp.py:
+    Now only the GConfValue exists.
+    There's only one function to generate persistency_link's: 
+    create_persistency_link
+    This was created in favor of data_* functions.
+    
+    * src/rat/hig.py:
+    I generalized SetupFileList into SetupListAlertTemplate.
+    Created SetupListAlert, which just shows a list of items, it's only used to
+    show the user, it's not expected to be interacted with.
+    Save changes was ignoring the 'title' argument and not passing extra 
+    arguments.
+    There's now a 'list_dialog' function that uses the SetupListAlert.
+    
+    * setup.py:
+    Added classifiers, url, download_url and license.
+     
+    
 2005-11-13 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
 
 	* src/rat/gwp.py:

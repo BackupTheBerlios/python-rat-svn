@@ -5,7 +5,41 @@ defined for the key but also preserves the widget state, for example making it
 insensitive when the GConf key is insensitive.
 
 It also implements a representation of a gconf key (GConfValue) that handles
-the repetitive hassles of a maintaining its integrity. 
+the repetitive hassles of a maintaining its integrity.
+
+Use the L{create_persistency_link} function to create persistency links between
+your widget and a gconf value. The signature of the function changes according
+the first argument:
+    
+    * gtk.FileChooserButton: (button, key, use_directory=False, use_uri=True, *args, **kwargs)
+    * gtk.Entry: (entry, key, data_spec = Spec.STRING, *args, **kwargs)
+    * gtk.SpinButton: (spinbutton, key, use_int = True, *args, **kwargs)
+    * gtk.ToggleButton: (toggle, key, *args, **kwargs)
+
+You can add new handlers to the L{create_persistency_link} function like this::
+
+    import gwp
+    gwp.create_persistency_link.append_handler(SomeClass, my_handler)
+    
+C{my_handler} should be a function that returns a L{PersistencyLink} 
+
+Here's a simple example on how to use it::
+
+    from rat import gwp
+    import gtk
+    import gconf
+    # Monitor the key, so gaw can listen for gconf events
+    gconf.client_get_default().add_dir("/apps/gaw", gconf.CLIENT_PRELOAD_NONE)
+
+    win = gtk.Window (gtk.WINDOW_TOPLEVEL)
+    entry = gtk.Entry ()
+    entry.show ()
+    # bind the key with the widget
+    link = gwp.create_persistency_link(entry, "/apps/gaw/str_key")
+    win.add (entry)
+    win.show ()
+    gtk.main ()            
+
 """
 __license__ = "MIT <http://www.opensource.org/licenses/mit-license.php>"
 __author__ = "Tiago Cogumbreiro <cogumbreiro@users.sf.net>"
@@ -13,6 +47,9 @@ __copyright__ = "Copyright 2005, Tiago Cogumbreiro"
 
 import gconf
 import gobject
+import gtk
+
+from swp import *
 
 class Spec:
     """
@@ -32,8 +69,9 @@ Spec.STRING = Spec ("string", gconf.VALUE_STRING, str, '')
 Spec.FLOAT = Spec ("float", gconf.VALUE_FLOAT, float, 0.0)
 Spec.INT = Spec ("int", gconf.VALUE_INT, int, 0)
 Spec.BOOL = Spec ("bool", gconf.VALUE_BOOL, bool, True)   
+    
 
-class GConfValue (object):
+class GConfValue(object):
     """
     The GConfValue represents the GConf key's data. You define a certain schema
     (or type of data) and GConfValue keeps track of its integrity. It adds the
@@ -102,14 +140,12 @@ class GConfValue (object):
         return val
     
     def set_data (self, value):
+        assert isinstance(value, self.data_spec.py_type)
         val = self.get_data ()
         if val != value:
             self._setter (self.key, value)
     
-    def unset_data(self):
-        self.data = self.default
-        
-    data = property (get_data, set_data, unset_data)
+    data = property (get_data, set_data)
     
 
     ##########
@@ -120,26 +156,35 @@ class GConfValue (object):
     def set_default (self, default):
         self._default = default
 
-    def unset_default (self):
-        del self._default
-
-    default = property (get_default, set_default, unset_default)
+    default = property (get_default, set_default)
+    
+    ###############
+    # is writable
+    def get_is_writable(self):
+        return self.client.key_is_writable(self.key)
+    
+    is_writable = property(get_is_writable)
     
     ################
     # Other methods
     def set_callback (self, on_changed):
     
-        assert on_changed is None or callable (on_changed)
+        assert on_changed is None or callable(on_changed)
         
         if self._notify_id is not None:
             self.client_notify_remove (self._notify_id)
             self._notify_id = None
+            self._on_changed_cb = None
         
         if on_changed is not None:
+            self._on_changed_cb = on_changed
             self._notify_id = self.client.notify_add (
                 self.key,
-                on_changed
+                self._on_changed
             )
+                                                                                                                                                
+    def _on_changed(self, *args):
+        self._on_changed_cb(self)
     
     def __del__ (self):
         self.set_callback (None)
@@ -149,178 +194,17 @@ class GConfValue (object):
         Resets the default value to the one present in the Spec
         """
         if hasattr (self, "_default"):
-            del self.default
+            del self._default
 
 
-class OutOfSyncError (StandardError):
-    """
-    This error is thrown when there's a synchronization problem
-    between the L{GConfValue} and the widget.
-    """
-
-class Data (object):
-    """
-    This utility class acts as a synchronizer between a widget and gconf entry.
-    This data is considered to have problematic backends, since widgets can be
-    destroyed and gconf can have integrity problems (for example permissions or
-    schema change).
-    
-    To use the gwp.Data object you just need to specify it's associated type
-    (the schema) and optionally a default value.
-    
-    Here's a simple example on how to use it (taken from U{GAW Introduction <http://s1x.homelinux.net/documents/gaw_intro>},
-    this was this module's former name)::
-    
-        import gaw
-        import gtk
-        import gconf
-        # Monitor the key, so gaw can listen for gconf events
-        gconf.client_get_default ().add_dir ("/apps/gaw", gconf.CLIENT_PRELOAD_NONE)
-  
-        win = gtk.Window (gtk.WINDOW_TOPLEVEL)
-        entry = gtk.Entry ()
-        entry.show ()
-        # bind the key with the widget
-        gconf_data = gaw.data_entry (entry, "/apps/gaw/str_key")
-        win.add (entry)
-        win.show ()
-        gtk.main ()            
-    """
-    
-    def __init__ (self, widget, widget_getter, widget_setter, changed_signal, gconf_value, is_lazy = False):
-        """
-        @param widget: This is the widget this is observing.
-        @type widget: gtk.Widget
-        
-        @param widget_getter: The function that gets the widget's data
-        
-        @param widget_setter: The function that sets the widget's data
-        
-        @param changed_signal: The name of the signal this observer should be
-        connecting too.
-        
-        @param gconf_value: The value stored in GConf
-        
-        @type gconf_value: gwp.GConfValue
-        """
-        self.widget = widget
-        self._widget_setter = widget_setter
-        self._widget_getter = widget_getter
-        self.gconf_value = gconf_value
-        self.is_lazy = is_lazy
-        
-        gconf_value.set_callback (self._on_gconf_changed)
-
-        widget.connect (changed_signal, self._on_widget_changed)
-        widget.connect ("destroy", self._on_destroy)
-
-        if self.widget is not None:
-            self.sync_widget ()
-    
-    #######
-    # data
-    def get_data (self, sync_gconf = True):
-        if sync_gconf:
-            self.sync_gconf ()
-            
-        return self.gconf_value.data
-    
-    def set_data (self, data):
-        assert isinstance (data, self.gconf_value.data_spec.py_type)
-        self.gconf_value.data = data
-        self._widget_setter(data)
-
-    def unset_data(self):
-        self.data = self.gconf_value.default
-        
-    data = property (get_data, set_data, unset_data, "The data contained in this component.")
-    
-    ##########
-    # Methods
-    
-    def _on_destroy (self, widget):
-        self._widget = None
-        
-    def _on_widget_changed (self, *args):
-        if self.widget is None:
-            return
-        # Widget has changed its value, we need to update the GConfValue
-        self.sync_gconf (from_widget = True)
-            
-    def _on_gconf_changed (self, client, conn_id, entry, user_data = None):
-        # Something was updated on gconf
-        if self.widget is None:
-            return
-        
-        data_spec = self.gconf_value.data_spec
-        
-        self.widget.set_sensitive (client.key_is_writable (self.gconf_value.key))
-        if entry.value is not None and entry.value.type == data_spec.gconf_type:
-            converter = getattr (entry.value, 'get_' + data_spec.name)
-            self._widget_setter (converter ())
-            
-        else:
-            self._widget_setter (self.gconf_value.default)
-            
-        # Because widgets can validate data, sync the gconf entry again
-        self.sync_gconf(from_gconf = True)
-    
-    def sync_widget (self):
-        """
-        Synchronizes the widget in favour of the gconf key. You must check if
-        there is a valid widget before calling this method.
-        """
-        assert self.widget, "Checking if there's a valid widget is a prerequisite."
-
-        # Set the data from the gconf_value
-        val = self.gconf_value.data
-
-        if val is not None:
-            self._widget_setter (val)
-        
-        if self.is_lazy:
-            gobject.idle_add (self._check_sync, val)
-        else:
-            self._check_sync (val)
-    
-    def _check_sync (self, value):
-        # Because some widgets change the value, update it to gconf again
-        new_val = self._widget_getter ()
-        if new_val is None:
-            raise OutOfSyncError ("Widget getter returned 'None' after a value was set.")
-        
-        # The value was changed by the widget, we updated it back to GConfValue
-        if value != new_val:
-            self.sync_gconf ()
-    
-    def sync_gconf (self, from_widget = False, from_gconf = False):
-        """
-        Synchronizes the gconf key in favour of the widget. You must check if
-        there is a valid widget before calling this method.
-        """
-        assert self.widget, "Checking if there's a valid widget is a prerequisite."
-        # First we 
-        val = self._widget_getter ()
-        if val is None:
-            return
-            #val = self.gconf_value.default
-
-        try:
-            self.gconf_value.data = val
-        except gobject.GError:
-            raise OutOfSyncError
-
-            new_val = self.gconf_value.data
-            if val != new_val:
-                raise OutOfSyncError
 
 
-class RadioButtonData:
+class RadioButtonPersistencyLink:
     """
     A radio_group is a dictionary that associates a gconf boolean key
     with a radio button::
     
-        data = RadioButtonData (
+        data = RadioButtonPersistency (
             {
                 'cheese': cheese_btn,
                 'ham': ham_btn,
@@ -335,7 +219,7 @@ class RadioButtonData:
     
     selected_by_default = None
     
-    def __init__ (self, widgets, key, client = None):
+    def __init__(self, widgets, key, client = None):
         self.widgets = widgets
         self.keys = {}
         self.gconf_value = GConfValue (key, Spec.STRING, client)
@@ -368,20 +252,17 @@ class RadioButtonData:
         # Update gconf entries
         self.sync_gconf ()
         
-    def _on_gconf_changed (self, client, conn_id, entry, user_data = None):
+    def _on_gconf_changed(self, data):
         
         data_spec = self.gconf_value.data_spec
 
         for widget in self.keys:
-            widget.set_sensitive (client.key_is_writable (self.gconf_value.key))
+            widget.set_sensitive(self.gconf_value.is_writable)
+        
+        self.sync_widget()
+        self.sync_gconf()
             
-        if entry.value is None or entry.value.type != data_spec.gconf_type:
-            self.sync_gconf ()
-
-        else:
-            self.sync_widget ()
-            
-    def sync_widget (self):
+    def sync_widget(self):
         key = self.gconf_value.data
         
         if key in self.widgets:
@@ -417,12 +298,28 @@ class RadioButtonData:
     
     data = property (get_data, set_data)
 
+    def cmp_func(cls, obj):
+        try:
+            obj_iter = iter(obj)
+        except TypeError:
+            return False
+        
+        for item in obj_iter:
+            if not isinstance(item, gtk.RadioButton):
+                return False
+        
+        return True
+    
+    cmp_func = classmethod(cmp_func)
 
-def data_file_chooser (button, key, use_directory = False, use_uri = True, default = None, client = None):
+
+create_persistency_link = PersistencyLinkFactory()
+
+def _persistency_link_file_chooser (button, key, use_directory=False, use_uri=True, *args, **kwargs):
     """
     
-    Associates a L{gwp.Data} to a gtk.FileChooserButton. This is an utility function
-    that wrapps around L{gwp.Data}.
+    Associates a L{gwp.PersistencyLink} to a gtk.FileChooserButton. This is an utility function
+    that wrapps around L{gwp.PersistencyLink}.
 
     @param button: the file chooser button
     @param key: the gconf key
@@ -432,7 +329,7 @@ def data_file_chooser (button, key, use_directory = False, use_uri = True, defau
     @param client: The GConfClient
     @type button: U{gtk.FileChooserButton <http://pygtk.org/pygtk2reference/class-gtkfilechooserbutton.html>}
     
-    @rtype: L{gwp.Data}
+    @rtype: L{gwp.PersistencyLink}
     """
     if not use_directory and not use_uri:
         getter = button.get_filename
@@ -447,36 +344,43 @@ def data_file_chooser (button, key, use_directory = False, use_uri = True, defau
         getter = button.get_current_folder_uri
         setter = button.set_current_folder_uri
     
-    return Data (button, getter, setter, "selection-changed", GConfValue (key, Spec.STRING, default = default, client = client), is_lazy = True)
+    return PersistencyLink(button, getter, setter, "selection-changed", GConfValue(key, Spec.STRING, default=default, client=client, *args, **kwargs), is_lazy=True)
 
+create_persistency_link.append_handler(gtk.FileChooserButton, _persistency_link_file_chooser)
 
-def data_entry (entry, key, data_spec = Spec.STRING, *args, **kwargs):
+def _persistency_link_entry (entry, key, data_spec = Spec.STRING, *args, **kwargs):
     """
     Associates to a U{gtk.Entry <http://pygtk.org/pygtk2reference/class-gtkentry.html>}
 
-    @rtype: L{gwp.Data}
+    @rtype: L{gwp.PersistencyLink}
     """
-    return Data (entry, entry.get_text, entry.set_text, "changed", GConfValue (key, data_spec, *args, **kwargs))
+    return PersistencyLink (entry, entry.get_text, entry.set_text, "changed", GConfValue (key, data_spec, *args, **kwargs))
 
+create_persistency_link.append_handler(gtk.Entry, _persistency_link_entry)
 
-def data_spin_button (spinbutton, key, use_int = True, *args, **kwargs):
+def _persistency_link_spin_button (spinbutton, key, use_int = True, *args, **kwargs):
     """
     Associates to a U{gtk.SpinButton <http://pygtk.org/pygtk2reference/class-gtkspinbutton.html>}
 
     @param use_int: when set to False it uses floats instead.
-    @rtype: L{gwp.Data}
+    @rtype: L{gwp.PersistencyLink}
     """
     
     if use_int:
-        return Data (spinbutton, spinbutton.get_value_as_int, spinbutton.set_value, "value-changed", GConfValue (key, Spec.INT, *args, **kwargs))
+        return PersistencyLink (spinbutton, spinbutton.get_value_as_int, spinbutton.set_value, "value-changed", GConfValue (key, Spec.INT, *args, **kwargs))
     else:
-        return Data (spinbutton, spinbutton.get_value, spinbutton.set_value, "value-changed", GConfValue (key, Spec.FLOAT, *args, **kwargs))
+        return PersistencyLink (spinbutton, spinbutton.get_value, spinbutton.set_value, "value-changed", GConfValue (key, Spec.FLOAT, *args, **kwargs))
 
+create_persistency_link.append_handler(gtk.SpinButton, _persistency_link_spin_button)
 
-def data_toggle_button (toggle, key, *args, **kwargs):
+def _persistency_link_toggle_button (toggle, key, *args, **kwargs):
     """
     This is to be used with a U{gtk.ToggleButton <http://pygtk.org/pygtk2reference/class-gtktogglebutton.html>}
 
-    @rtype: L{gwp.Data}
+    @rtype: L{gwp.PersistencyLink}
     """
-    return Data (toggle, toggle.get_active, toggle.set_active, "toggled", GConfValue (key, Spec.BOOL, *args, **kwargs))
+    return PersistencyLink (toggle, toggle.get_active, toggle.set_active, "toggled", GConfValue (key, Spec.BOOL, *args, **kwargs))
+
+create_persistency_link.append_handler(gtk.ToggleButton, _persistency_link_toggle_button)
+
+create_persistency_link.append_handler_full(RadioButtonPersistencyLink.cmp_func, RadioButtonPersistencyLink)

@@ -266,8 +266,45 @@ class SetupAlert (WidgetCostumizer):
         return dialog, vbox
 
     _run = dialog_decorator (_run)
+
+
+class SetupListAlertTemplate(SetupAlert):
+    def get_list_title(self):
+        raise NotImplementedError
     
-class SetupFileListAlert (SetupAlert):
+    def configure_widgets(self, dialog, tree):
+        raise NotImplementedError
+
+    def create_store(self):
+        raise NotImplementedError
+    
+    def _setup (self, dialog, vbox):
+        store = self.create_store()
+        
+        title = self.get_list_title()
+        
+        if title is not None:
+            lbl = SetupLabel(title) ()
+            lbl.show ()
+            vbox.pack_start (lbl, False, False)
+        
+        tree = gtk.TreeView ()
+        tree.set_model (store)
+        tree.set_headers_visible (False)
+
+        tree.show ()
+        scroll = SetupScrolledWindow ()()
+        scroll.add (tree)
+        scroll.show ()
+        
+        vbox.add (scroll)
+
+        self.configure_widgets(dialog, tree)
+
+        return dialog, vbox
+
+
+class SetupFileListSaveAlert (SetupListAlertTemplate):
     
     def on_toggle (self, render, path, args):
         dialog, model = args
@@ -283,23 +320,13 @@ class SetupFileListAlert (SetupAlert):
 
         dialog.set_response_sensitive (gtk.RESPONSE_OK, model.enabled_rows > 0)
     
-    def _setup (self, dialog, vbox):
-        store = gtk.ListStore(gobject.TYPE_BOOLEAN, gobject.TYPE_STRING)
-        store.enabled_rows = 0
-        for filename in self._kwargs["files"]:
-            store.append ((False, filename))
-        
-        dialog.set_data ("files_store", store)
-        
+    def get_list_title(self):
         # To translators: %s is either 'documents' or some simillar word
-        lbl = SetupLabel(_("Select the %s you want to save") % self._kwargs["documents"] + ":") ()
-        lbl.show ()
-        vbox.pack_start (lbl, False, False)
-        
-        tree = gtk.TreeView ()
-        tree.set_model (store)
-        tree.set_headers_visible (False)
+        return _("Select the %s you want to save") % self._kwargs["documents"] + ":"
 
+    def configure_widgets(self, dialog, tree):
+        store = tree.get_model()
+        
         r = gtk.CellRendererToggle ()
         r.connect ("toggled", self.on_toggle, (dialog, store))
         col = gtk.TreeViewColumn ("", r, active = 0)
@@ -308,17 +335,42 @@ class SetupFileListAlert (SetupAlert):
         r = gtk.CellRendererText()
         col = gtk.TreeViewColumn("", r, text = 1)
         tree.append_column (col)
-        
-        tree.show ()
-        scroll = SetupScrolledWindow ()()
-        scroll.add (tree)
-        scroll.show ()
-        
-        vbox.add (scroll)
-        
-        # Since every row is not selected on start the save button starts insensitive
+
+        dialog.set_data ("files_store", store)
         dialog.set_response_sensitive (gtk.RESPONSE_OK, False)
-        return dialog, vbox
+
+
+    def create_store(self):
+        store = gtk.ListStore(gobject.TYPE_BOOLEAN, gobject.TYPE_STRING)
+        store.enabled_rows = 0
+        for filename in self._kwargs["files"]:
+            store.append ((False, filename))
+        return store
+        
+    
+
+
+class SetupListAlert (SetupListAlertTemplate):
+
+    def get_list_title(self):
+        return self._kwargs.get("list_title", None)
+
+    def configure_widgets(self, dialog, tree):
+        r = gtk.CellRendererText()
+        col = gtk.TreeViewColumn("", r, text = 0)
+        tree.append_column (col)
+
+
+    def create_store(self):
+        store = gtk.ListStore(gobject.TYPE_STRING)
+
+        for filename in self._kwargs["items"]:
+            store.append ((filename,))
+
+        return store
+    
+
+
 
 class RunDialog (WidgetCostumizer):
     """
@@ -454,7 +506,7 @@ def save_changes (files, last_save = None, parent = None, document = _("document
     if "run" in kwargs:
         del kwargs["run"]
     
-    if len (files) == 1:
+    if len(files) == 1:
         # To translators: the first %s is 'document' (or what the user 
         # provided), the second %s is the filename, you can change the
         # order of these
@@ -468,6 +520,9 @@ def save_changes (files, last_save = None, parent = None, document = _("document
             updater = _TimeUpdater (last_save)
             secondary_text = updater.get_text ()
 
+        if "title" in kwargs:
+            kwargs = {"title": kwargs["title"]}
+            
         dialog = hig_alert (
             primary_text,
             secondary_text,
@@ -479,6 +534,7 @@ def save_changes (files, last_save = None, parent = None, document = _("document
                 gtk.STOCK_SAVE, gtk.RESPONSE_OK
             ),
             run = False,
+            **kwargs
         )
         
         if last_save is not None:
@@ -516,7 +572,7 @@ def save_changes (files, last_save = None, parent = None, document = _("document
             run = False,
             files = files,
             documents = documents,
-            _setup_alert = SetupFileListAlert,
+            _setup_alert = SetupFileListSaveAlert,
             **kwargs
         )
 
@@ -528,7 +584,18 @@ def save_changes (files, last_save = None, parent = None, document = _("document
         else:
             files = tuple(filename for save_file, filename in store if save_file)
         return files, response
-            
+
+
+def list_dialog(primary_text, secondary_text, parent=None, items=(), *args, **kwargs):
+    return hig_alert(
+        primary_text,
+        secondary_text,
+        parent = parent,
+        _setup_alert = SetupListAlert,
+        items = items,
+        **kwargs
+    )
+
 class HigProgress (gtk.Window):
     """
     HigProgress returns a window that contains a number of properties to
@@ -650,9 +717,16 @@ class HigProgress (gtk.Window):
         return True
         
 if __name__ == '__main__':
-    print save_changes (["foo", "bar"], title="goo")
-    print dialog_ok_cancel ("Rat will simplify your code",
-                            ("By putting common utilities in one place all "
-                             "benefit and get nicer apps.")) 
+    primary_text = "Listing cool stuff"
+    secondary_text = "To select more of that stuff eat alot of cheese!"
+    list_title = "Your cool stuff:"
+    items = ["foo", "bar"] * 10
+    window_title = "Rat Demo"
+    list_dialog(primary_text, secondary_text, items=items, title=window_title, list_title=list_title)
+
+#    print save_changes (["foo"], title="goo")
+#    print dialog_ok_cancel ("Rat will simplify your code",
+#                            ("By putting common utilities in one place all "
+#                             "benefit and get nicer apps.")) 
 
 

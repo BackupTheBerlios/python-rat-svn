@@ -1,0 +1,89 @@
+2006-01-30 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+    * src/rat/testsensitive.py:
+    * src/rat/swp.py:
+    * src/rat/sensitive.py:
+    * src/rat/testgwp.py:
+    * src/rat/gwp.py:
+    * src/rat/util.py:
+    * src/rat/hig.py:
+    Add conformance to PEP 8.
+
+    * src/rat/text.py:
+    Synchronized rat.text functions from culebra. This introduces line iterator
+    and an improved search iterator.
+
+2006-01-12 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
+    * src/rat/testsensitive.py:
+    tests.py was renamed to testsensitive.py
+    
+    * src/rat/swp.py:
+    Storage Widget Persistency module was created, which is basically
+    a generalization of gwp, by allowing to plug different backends and
+    using the same API for it.
+    
+    * src/rat/gwp.py:
+    Now only the GConfValue exists.
+    There's only one function to generate persistency_link's: 
+    create_persistency_link
+    This was created in favor of data_* functions.
+    
+    * src/rat/hig.py:
+    I generalized SetupFileList into SetupListAlertTemplate.
+    Created SetupListAlert, which just shows a list of items, it's only used to
+    show the user, it's not expected to be interacted with.
+    Save changes was ignoring the 'title' argument and not passing extra 
+    arguments.
+    There's now a 'list_dialog' function that uses the SetupListAlert.
+    
+    * setup.py:
+    Added classifiers, url, download_url and license.
+     
+    
+2005-11-13 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
+	* src/rat/gwp.py:
+	Corrected a little bug at an exception sometimes thrown when the object
+        was garbage collected.
+	Corrected a bug when trying to unset the callback.
+	Added OutOfSyncError exception.
+	
+	* src/rat/hig.py:
+	Added a new function 'dialog_info'. Works like 'dialog_warn'.
+	Improved documentation.
+	Started correcting the code-style.
+	Corrected a bug on HigProgress, which was still referencing the old
+	hig_label.
+	
+	* src/rat/sensitive.py:
+	Removed the __all__ varible and added the underscore in classes/functions
+	to mark them as private.
+	Improved documentation.
+
+	* src/rat/testgwp.py:
+	* src/rat/testutil.py:
+	* src/rat/tests.py:
+	Added test cases.
+
+	* src/rat/util.py:
+	Removed SimpleList*. Improved widget iteration.
+	Removed traceback*. Removed print_widget_tree.
+	Renamed 'find_widget' to 'find_child_widget'. Renamed 'find_widget_up' to
+	'find_parent_widget'.
+	Added the possibility to iterate recursively or not into widget children.
+
+2005-11-2 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
+	* src/rat/gwp.py:
+	Corrected the FileChooser problems in the correct way, which means that
+	gwp.Data is aware of lazy getters, use the keyword 'is_lazy' and set it
+	to 'True' when creating it.
+	Improved documentation.
+	Reworked on bits of gwp.Data.
+	Corrected the file_chooser_button.
+	Now uses gwp.OutOfSyncError to point possible gwp.Data problems.
+
+	* src/rat/hig.py:
+	Improved documentation.
+	'humanize_seconds' now supports the optional display of hours and days.
+

@@ -78,11 +78,11 @@ class PersistencyLink(object):
         widget.connect("destroy", self._on_destroy)
 
         if self.widget is not None:
-            self.sync_widget ()
+            self.sync_widget()
     
     #######
     # data
-    def get_data (self, sync_storage=True):
+    def get_data(self, sync_storage=True):
         if sync_storage:
             self.sync_storage()
             
@@ -114,7 +114,7 @@ class PersistencyLink(object):
         # Widget has changed its value, we need to update the GConfValue
         self.sync_storage()
             
-    def _on_storage_changed (self, storage):
+    def _on_storage_changed(self, storage):
         # Something was updated on gconf
         if self.widget is None:
             return
@@ -160,7 +160,7 @@ class PersistencyLink(object):
         """
         assert self.widget, "Checking if there's a valid widget is a prerequisite."
         # First we 
-        val = self._widget_getter ()
+        val = self._widget_getter()
         if val is None:
             return
 

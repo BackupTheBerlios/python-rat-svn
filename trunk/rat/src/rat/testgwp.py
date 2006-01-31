@@ -9,10 +9,10 @@ import gtk
 
 GCONF_KEY = "/apps/gwp/key_str"
 
-class TestGConfValue (unittest.TestCase):
+class TestGConfValue(unittest.TestCase):
     def setUp(self):
-        self.gconf = gconf.client_get_default ().add_dir ("/apps/gwp", gconf.CLIENT_PRELOAD_NONE)
-        self.value = gwp.GConfValue (
+        self.gconf = gconf.client_get_default().add_dir("/apps/gwp", gconf.CLIENT_PRELOAD_NONE)
+        self.value = gwp.GConfValue(
           key = GCONF_KEY,
           data_spec = gwp.Spec.STRING
         )

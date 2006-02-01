@@ -1,4 +1,12 @@
+2006-02-01 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
+    * src/rat/testtext.py:
+    Added the tests for text module.
+
+=== 0.1 ===
+
 2006-01-30 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
     * src/rat/testsensitive.py:
     * src/rat/swp.py:
     * src/rat/sensitive.py:

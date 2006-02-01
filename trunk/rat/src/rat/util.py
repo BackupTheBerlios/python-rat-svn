@@ -7,7 +7,6 @@ list store creation.
 """
 
 import gtk
-import gobject
 
 class ListSpec:
     """

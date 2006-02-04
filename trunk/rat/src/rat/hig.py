@@ -64,7 +64,7 @@ dialog_warn = \
         )
 
 dialog_ok_cancel = \
-    lambda primary_text, secondary_text, ok_button = gtk.STOCK_OK, run = True, **kwargs: \
+    lambda primary_text, secondary_text, ok_button=gtk.STOCK_OK, run=True, **kwargs: \
         hig_alert(
             primary_text,
             secondary_text,

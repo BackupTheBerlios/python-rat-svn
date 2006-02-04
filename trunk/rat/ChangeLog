@@ -1,3 +1,9 @@
+2006-02-04 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
+    * src/rat/shiftpanned.py:
+    New module that implements a Panned that can have it's child widgets
+    hidden.
+    
 2006-02-01 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
 
     * src/rat/testtext.py:

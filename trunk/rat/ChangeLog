@@ -2,6 +2,7 @@
 
     * src/rat/shiftpaned.py:
     * src/rat/testshiftpaned.py:
+    Added copyright/license.
     Removed the tests to 'testshiftpaned.py'.
     Added `get_position` and `set_position` which all contained paned equal
     methods.

@@ -1,3 +1,7 @@
+__license__ = "MIT <http://www.opensource.org/licenses/mit-license.php>"
+__author__ = "Tiago Cogumbreiro <cogumbreiro@users.sf.net>"
+__copyright__ = "Copyright 2006, Tiago Cogumbreiro"
+
 import gtk
 
 (

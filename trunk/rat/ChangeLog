@@ -1,6 +1,12 @@
 2006-02-04 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
 
-    * src/rat/shiftpanned.py:
+    * src/rat/shiftpaned.py:
+    * src/rat/testshiftpaned.py:
+    Removed the tests to 'testshiftpaned.py'.
+    Added `get_position` and `set_position` which all contained paned equal
+    methods.
+
+    * src/rat/shiftpaned.py:
     New module that implements a Panned that can have it's child widgets
     hidden.
     

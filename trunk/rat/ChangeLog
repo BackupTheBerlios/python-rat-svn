@@ -2,6 +2,13 @@
 
     * src/rat/shiftpaned.py:
     * src/rat/testshiftpaned.py:
+    Renamed SidebarPane to SidebarPaned.
+    Now uses gtk.EventBox instead of gtk.VBox. Corrected the methods
+    on SidebarPaned.
+    Improved pack methods of SidebarPaned.
+    
+    * src/rat/shiftpaned.py:
+    * src/rat/testshiftpaned.py:
     Optimized shiftpaned's internals. Now it handles reparenting only when
     strictly necessary. It also uses one less widget.
     Improved it's interface and now it's compatible with gtk.Paned.

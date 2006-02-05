@@ -85,7 +85,7 @@ def _get_operations(old_state, new_state):
     return _STATE_TO_WIDGET[(old_state, new_state)]
 
 
-class ShiftPaned(gtk.VBox):
+class ShiftPaned(gtk.EventBox):
     """
     A ShiftPaned is a gtk.Paned that can hide one of its child widgets,
     therefore hiding the pane division.
@@ -215,38 +215,37 @@ class ShiftPaned(gtk.VBox):
     def add2(self, child):
         self.pack2(child)
     
-    def pack_start(self, *args, **kwargs):
-        raise AttributeError("Use gtk.Paned methods instead")
-    
-    (pack_end, pack_start_defaults, pack_end_defaults, set_homogeneous,
-    get_homogeneous, set_spacing, get_spacing, reorder_child,
-    query_child_packing, set_child_packing) = (pack_start,) * 10
+    def add(self, widget):
+        raise AttributeError("Use add1 and add2 instead.")
 
 
-
-class SidebarPane(gtk.VBox):
+class SidebarPaned(gtk.EventBox):
     def __init__(self, paned_factory=gtk.HPaned, main_first=True):
+        super(SidebarPaned, self).__init__()
+        
         self.paned = ShiftPaned(paned_factory)
         self.main_first = main_first
+        self.add(self.paned)
+        self.paned.show()
     
-    def pack_main(self, main_widget):
+    def pack_main(self, main_widget, *args, **kwargs):
         if self.main_first:
-            self.paned.pack1(main_widget)
+            self.paned.pack1(main_widget, *args, **kwargs)
         else:
-            self.paned.pack2(main_widget)
+            self.paned.pack2(main_widget, *args, **kwargs)
     
-    def pack_sub(self, sub_widget):
+    def pack_sub(self, sub_widget, *args, **kwargs):
         if not self.main_first:
-            self.paned.pack1(sub_widget)
+            self.paned.pack1(sub_widget, *args, **kwargs)
         else:
-            self.paned.pack2(sub_widget)
+            self.paned.pack2(sub_widget, *args, **kwargs)
     
     def show_sub(self):
         # Faster this way
         self.paned.set_state(SHOW_BOTH)
     
     def hide_sub(self):
-        if self.main_first:
+        if not self.main_first:
             self.paned.hide_child1()
         else:
             self.paned.hide_child2()
@@ -256,25 +255,36 @@ class SidebarPane(gtk.VBox):
 
 if __name__ == '__main__':
     #p = ShiftPaned(gtk.VPaned)
-    p = ShiftPaned(gtk.HPaned)
-    btn1 = gtk.Button("Show right only")
-    btn2 = gtk.Button("Show left only")
-    p.pack1(btn1)
-    p.pack2(btn2)
+#    p = ShiftPaned(gtk.HPaned)
+    p = SidebarPaned()
+    
+    btn1 = gtk.Button("Show sidebar")
+    btn2 = gtk.Button("Hide sidebar")
+
+    p.pack_main(btn1)
+    p.pack_sub(btn2)
+    
+#    p.pack1(btn1)
+#    p.pack2(btn2)
+
     def on_click(btn):
-        p.show_child2()
-        p.hide_child1()
+#        p.show_child2()
+#        p.hide_child1()
+        p.show_sub()
         
     btn1.connect("clicked", on_click)
     def on_click(btn):
-        p.show_child1()
-        p.hide_child2()
+#        p.show_child1()
+#        p.hide_child2()
+        p.hide_sub()
         
     btn2.connect("clicked", on_click)
     btn1.show()
     btn2.show()
     w = gtk.Window()
-    w.add(p)
+    vbox = gtk.VBox()
+    vbox.add(p)
+    w.add(vbox)
     w.show_all()
     w.connect("delete-event", gtk.main_quit)
     gtk.main()

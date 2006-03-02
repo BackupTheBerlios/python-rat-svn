@@ -8,6 +8,9 @@ list store creation.
 
 import gtk
 
+class NotFoundError(KeyError):
+    """This is raised when an element is not found"""
+
 class ListSpec:
     """
     This class is used to help the manipulation of C{gtk.ListStore}s.
@@ -75,6 +78,8 @@ class ListSpec:
         keys.sort()
         return [mapping[key] for key in keys]
 
+################################################################################
+# widget iterators
 def _simple_iterate_widget_children(widget):
     """This function iterates all over the widget children.
     """
@@ -172,7 +177,7 @@ def find_parent_widget(widget, name, find_self=True):
         if w.get_name() == name:
             return w
 
-    return None
+    raise NotFoundError(name)
 
 def find_child_widget(widget, name, find_self=True):
     """
@@ -196,7 +201,7 @@ def find_child_widget(widget, name, find_self=True):
         if name == w.get_name():
             return w
     
-    return None
+    raise NotFoundError(name)
 
         
 

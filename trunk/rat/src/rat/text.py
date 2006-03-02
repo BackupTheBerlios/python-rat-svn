@@ -19,18 +19,21 @@ def get_buffer_selection(buffer):
         return buffer.get_slice(*bounds)
 
 class SearchIterator:
-    def __init__(self, text_buffer, search_text, find_forward=True, start_in_cursor=True):
+    def __init__(self, text_buffer, search_text, find_forward=True, start_in_cursor=True, next_iter=None):
         self.search_text = search_text
         self.text_buffer = text_buffer
         self.find_forward = find_forward
         
+        if next_iter is not None:
+            self.next_iter = next_iter
         
-        if start_in_cursor:
+        elif start_in_cursor:
             bounds = text_buffer.get_selection_bounds()
             if len(bounds) == 0:
                 self.next_iter = text_buffer.get_iter_at_mark(text_buffer.get_insert())
             else:
                 self.next_iter = find_forward and bounds[1] or bounds[0]
+        
         else:
             if find_forward:
                 self.next_iter = text_buffer.get_start_iter()
@@ -66,48 +69,6 @@ class SearchIterator:
     def __iter__(self):
         return self
         
-def search_iterator(text_buffer, search_text, find_forward = True, start_in_cursor = True):
-    """
-    This function implements an iterator for searching a gtk.TextBuffer for
-    a certain string.
-    
-    It supports forward and backwards search.
-    
-    It also supports finding from the start or from where the cursor is located.
-    """
-
-    if start_in_cursor:
-        bounds = text_buffer.get_selection_bounds()
-        if len(bounds) == 0:
-            text_iter = text_buffer.get_iter_at_mark(text_buffer.get_insert())
-        else:
-            text_iter = find_forward and bounds[1] or bounds[0]
-    else:
-        if find_forward:
-            text_iter = text_buffer.get_start_iter()
-        else:
-            text_iter = text_buffer.get_end_iter()
-    
-    bounds = 1
-    while bounds is not None:
-        if find_forward:
-            search = text_iter.forward_search
-            
-        else:
-            search = text_iter.backward_search
-            
-        bounds = search(search_text, gtk.TEXT_SEARCH_TEXT_ONLY, limit=None)
-        
-        if bounds is None:
-            break
-            
-        yield bounds
-        
-        if find_forward:
-            text_iter = bounds[1]
-        else:
-            text_iter = bounds[0]
-
 search_iterator = SearchIterator
 
 def line_iterator(buff, start_iter, end_iter):

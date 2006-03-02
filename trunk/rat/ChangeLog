@@ -1,3 +1,26 @@
+2006-03-01 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
+    * src/rat/hig.py:
+    Moved all lambdas to real functions.
+    Removed all 'dialog' suffixes and prefixes.
+    Prefixed all internal functions with '_' so that they are not imported.
+    SetupAlert now has two template methods before and after secondary label.
+    SetupAlert now cleans up better (deletes it's refs upon destroy).
+    New classes SetupRadioChoiceList, SetupMultipleChoiceList,
+    SetupSingleChoiceList, used on choice().
+    New function called choice() it's a superset of `save_changes`.
+    `save_changes` now uses `choice`.
+    `dialog_list` was renamed to `listing`.
+    
+    * src/rat/text.py:
+    SearchIterator can now start from a certain TextIter.
+    
+    * src/rat/util.py:
+    `find_parent_widget` and `find_child_widget` now raise `NotFoundError` when
+    the widget is not found instead of `None`.
+    
+     
+    
 2006-02-05 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
 
     * src/rat/shiftpaned.py:

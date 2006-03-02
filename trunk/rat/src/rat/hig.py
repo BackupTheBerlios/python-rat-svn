@@ -31,59 +31,15 @@ Sometimes you want to manipulate the dialog before running it::
 __license__ = "MIT <http://www.opensource.org/licenses/mit-license.php>"
 __author__ = "Tiago Cogumbreiro <cogumbreiro@users.sf.net>"
 __copyright__ = "Copyright 2005, Tiago Cogumbreiro"
-__all__ =("HigProgress", "RunDialog", "SetupDialog", "SetupLabel",
-           "SetupScrolledWindow", "WidgetCostumizer", "dialog_error",
-           "dialog_ok_cancel", "dialog_warn", "dialog_alert", "humanize_seconds",
-           "save_changes", "hig_alert")
 
 import gobject
 import gtk
 import datetime
+from util import find_child_widget
+
 from gettext import gettext as _
 from gettext import ngettext as N_
 
-dialog_error = \
-    lambda primary_text, secondary_text, **kwargs:\
-        hig_alert(
-            primary_text,
-            secondary_text,
-            stock = gtk.STOCK_DIALOG_ERROR,
-            buttons =(gtk.STOCK_CLOSE, gtk.RESPONSE_OK),
-            **kwargs
-        )
-    
-
-dialog_warn = \
-    lambda primary_text, secondary_text, **kwargs:\
-        hig_alert(
-            primary_text,
-            secondary_text,
-            stock = gtk.STOCK_DIALOG_WARNING,
-            buttons =(gtk.STOCK_CLOSE, gtk.RESPONSE_OK),
-            **kwargs
-        )
-
-dialog_ok_cancel = \
-    lambda primary_text, secondary_text, ok_button=gtk.STOCK_OK, run=True, **kwargs: \
-        hig_alert(
-            primary_text,
-            secondary_text,
-            stock = gtk.STOCK_DIALOG_WARNING,
-            buttons =(
-                gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                ok_button, gtk.RESPONSE_OK
-            ),
-            **kwargs)
-
-dialog_info = \
-    lambda primary_text, secondary_text, **kwargs:\
-        hig_alert(
-            primary_text,
-            secondary_text,
-            stock = gtk.STOCK_DIALOG_INFO,
-            buttons =(gtk.STOCK_CLOSE, gtk.RESPONSE_OK),
-            **kwargs
-        )
 
 class WidgetCostumizer:
     """
@@ -121,7 +77,7 @@ class WidgetCostumizer:
     def bind(self, *others):
         for other in others:
             if not isinstance(other, WidgetCostumizer):
-                raise TypeError("unsupported operand type(s) for +: '%s' and '%s'" %(type(self), type(other)))
+                raise TypeError(type(other))
             
             self._next_values.append(other)
 
@@ -137,6 +93,8 @@ class WidgetCostumizer:
         for costum in self._next_values:
             widget, container = costum._call(widget, container)
         
+        for key in self._kwargs:
+            delattr(self, key)
         return widget, container
         
     def __call__(self, widget = None, container = None):
@@ -183,7 +141,7 @@ class SetupLabel(WidgetCostumizer):
         
         return lbl, container
             
-def dialog_decorator(func):
+def _dialog_decorator(func):
     def wrapper(self, dialog, container):
         if container is None:
             container = dialog.get_child()
@@ -211,7 +169,7 @@ class SetupDialog(WidgetCostumizer):
         
         return dialog, align
     
-    _run = dialog_decorator(_run)
+    _run = _dialog_decorator(_run)
 
 
 class SetupAlert(WidgetCostumizer):
@@ -220,11 +178,20 @@ class SetupAlert(WidgetCostumizer):
             self.label = label
             
         def __call__(self, primary_text):
-            self.label.set_markup('<span weight="bold" size="larger">'+primary_text+'</span>')
+            self.label.set_markup(
+                '<span weight="bold" size="larger">'+primary_text+'</span>'
+            )
+        
             
-    _defaults = {"title": "", "stock": gtk.STOCK_DIALOG_INFO}
+    _defaults = {
+        "title": "",
+        "stock": gtk.STOCK_DIALOG_INFO
+    }
     
-    def _setup(self, dialog, vbox):
+    def _before_text(self, dialog, vbox):
+        pass
+    
+    def _after_text(self, dialog, vbox):
         pass
     
     def _run(self, dialog, container):
@@ -248,26 +215,53 @@ class SetupAlert(WidgetCostumizer):
         hbox.pack_start(vbox)
         
         
-        lbl = SetupLabel('<span weight="bold" size="larger">'+primary_text+'</span>')()
+        lbl = SetupLabel(
+            '<span weight="bold" size="larger">'+primary_text+'</span>'
+        )()
         lbl.show()
         
         
         dialog.set_primary_text = self._PrimaryTextDecorator(lbl)
         
         vbox.pack_start(lbl, False, False)
-
-        self._setup(dialog, vbox)
         
         lbl = SetupLabel(secondary_text)()
         lbl.show()
         dialog.set_secondary_text = lbl.set_text
-        vbox.pack_end(lbl, False, False)
+        
+        def on_destroy(widget):
+            delattr(widget, "set_secondary_text")
+            delattr(widget, "set_primary_text")
+        
+        dialog.connect("destroy", on_destroy)
+        
+        self._before_text(dialog, vbox)
+        vbox.pack_start(lbl, False, False)
+        self._after_text(dialog, vbox)
         
         return dialog, vbox
 
-    _run = dialog_decorator(_run)
+    _run = _dialog_decorator(_run)
 
 
+class SetupRadioChoiceList(SetupAlert):
+    
+    def _after_text(self, dialog, container):
+        vbox = gtk.VBox(spacing=6)
+        vbox.show()
+        vbox.set_name("items")
+        
+        container.pack_start(vbox)
+        group = None
+        for item in self.items:
+            radio = gtk.RadioButton(group, item)
+            radio.show()
+            
+            if group is None:
+                group = radio
+            
+            vbox.pack_start(radio, False, False)
+            
 class SetupListAlertTemplate(SetupAlert):
     def get_list_title(self):
         raise NotImplementedError
@@ -278,7 +272,7 @@ class SetupListAlertTemplate(SetupAlert):
     def create_store(self):
         raise NotImplementedError
     
-    def _setup(self, dialog, vbox):
+    def _before_text(self, dialog, vbox):
         store = self.create_store()
         
         title = self.get_list_title()
@@ -289,6 +283,7 @@ class SetupListAlertTemplate(SetupAlert):
             vbox.pack_start(lbl, False, False)
         
         tree = gtk.TreeView()
+        tree.set_name("list_view")
         tree.set_model(store)
         tree.set_headers_visible(False)
 
@@ -303,73 +298,116 @@ class SetupListAlertTemplate(SetupAlert):
 
         return dialog, vbox
 
+class SetupMultipleChoiceList(SetupListAlertTemplate):
 
-class SetupFileListSaveAlert(SetupListAlertTemplate):
-    
-    def on_toggle(self, render, path, args):
-        dialog, model = args
-        
-        tree_iter = model.get_iter(path)
-        row = model[tree_iter]
-        row[0] = not row[0]
-        
-        if row[0]:
-            model.enabled_rows += 1
-        else:
-            model.enabled_rows -= 1
+    _defaults = {
+        "list_title": None
+    }
+    _defaults.update(SetupAlert._defaults)
 
-        dialog.set_response_sensitive(gtk.RESPONSE_OK, model.enabled_rows > 0)
-    
     def get_list_title(self):
-        # To translators: %s is either 'documents' or some simillar word
-        return _("Select the %s you want to save") % self._kwargs["documents"] + ":"
+        return self.list_title
 
     def configure_widgets(self, dialog, tree):
         store = tree.get_model()
         
-        r = gtk.CellRendererToggle()
-        r.connect("toggled", self.on_toggle,(dialog, store))
-        col = gtk.TreeViewColumn("", r, active = 0)
+        
+        # Create the callback
+        def on_toggle(render, path, args):
+            dialog, model, min_sel, max_sel = args
+            
+            tree_iter = model.get_iter(path)
+            row = model[tree_iter]
+            row[0] = not row[0]
+            
+            if row[0]:
+                model.enabled_rows += 1
+            else:
+                model.enabled_rows -= 1
+            
+            if model.enabled_rows == 0:
+                is_sensitive = False
+            elif max_sel >= 0:
+                is_sensitive = min_sel <= model.enabled_rows <= max_sel
+            else:
+                is_sensitive = min_sel <= model.enabled_rows
+            
+            dialog.set_response_sensitive(gtk.RESPONSE_OK, is_sensitive)
+        
+        args = (dialog, store, self.min_select, self.max_select)
+
+        rend = gtk.CellRendererToggle()
+        rend.connect("toggled", on_toggle, args)
+        col = gtk.TreeViewColumn("", rend, active = 0)
         tree.append_column(col)
 
-        r = gtk.CellRendererText()
-        col = gtk.TreeViewColumn("", r, text = 1)
+        rend = gtk.CellRendererText()
+        col = gtk.TreeViewColumn("", rend, text = 1)
         tree.append_column(col)
 
-        dialog.set_data("files_store", store)
         dialog.set_response_sensitive(gtk.RESPONSE_OK, False)
 
 
     def create_store(self):
         store = gtk.ListStore(gobject.TYPE_BOOLEAN, gobject.TYPE_STRING)
         store.enabled_rows = 0
-        for filename in self._kwargs["files"]:
-            store.append((False, filename))
+        for item in self.items:
+            store.append((False, item))
         return store
-        
-    
 
 
 class SetupListAlert(SetupListAlertTemplate):
-
+    
+    _defaults = {
+        "list_title": None
+    }
+    _defaults.update(SetupAlert._defaults)
+    
     def get_list_title(self):
-        return self._kwargs.get("list_title", None)
+        return self.list_title
 
     def configure_widgets(self, dialog, tree):
-        r = gtk.CellRendererText()
-        col = gtk.TreeViewColumn("", r, text = 0)
+        rend = gtk.CellRendererText()
+        col = gtk.TreeViewColumn("", rend, text = 0)
         tree.append_column(col)
+        tree.get_selection().set_mode(gtk.SELECTION_NONE)
 
 
     def create_store(self):
         store = gtk.ListStore(gobject.TYPE_STRING)
 
-        for filename in self._kwargs["items"]:
-            store.append((filename,))
+        for item in self.items:
+            store.append((item,))
 
         return store
     
 
+class SetupSingleChoiceList(SetupListAlert):
+
+    _defaults = {
+        "min_select": 1,
+    }
+    
+    _defaults.update(SetupListAlert._defaults)
+
+    def configure_widgets(self, dialog, tree):
+        assert self.min_select in (0, 1)
+        
+        SetupListAlert.configure_widgets(self, dialog, tree)
+        selection = tree.get_selection()
+
+        if self.min_select == 0:
+            selection_mode = gtk.SELECTION_SINGLE
+            def on_selection_changed(selection, dialog):
+                is_sensitive = selection.count_selected_rows() > 0
+                dialog.set_response_sensitive(gtk.RESPONSE_OK, is_sensitive)
+            selection.connect("changed", on_selection_changed, dialog)
+            
+        else:
+            selection_mode = gtk.SELECTION_BROWSE
+
+        selection.set_mode(selection_mode)
+    
 
 
 class RunDialog(WidgetCostumizer):
@@ -382,17 +420,169 @@ class RunDialog(WidgetCostumizer):
         dialog.destroy()
         return response, None
         
-def hig_alert(primary_text, secondary_text, parent = None, flags = 0, buttons =(gtk.STOCK_OK, gtk.RESPONSE_OK), run = True, _setup_alert = SetupAlert, **kwargs):
+def hig_alert(primary_text, secondary_text, parent = None, flags = 0, \
+              buttons =(gtk.STOCK_OK, gtk.RESPONSE_OK), run = True, \
+              _setup_alert = SetupAlert, **kwargs):
+              
     if parent is None and "title" not in kwargs:
-        raise TypeError("When you don't define a parent you must define a title") 
+        raise TypeError("When you don't define a parent you must define a "
+                        "title") 
     dlg = gtk.Dialog(parent = parent, flags = flags, buttons = buttons)
+
     costumizer = SetupDialog()
+    
     costumizer.bind(_setup_alert(primary_text, secondary_text, **kwargs))
+
     if run:
         costumizer.bind(RunDialog())
+
     return costumizer(dlg)
 
-def humanize_seconds(elapsed_seconds, use_hours = True, use_days = True):
+
+#################################
+# choice_dialog
+class _OneStrategy:
+    accepts = lambda self, choices, min_select, max_select: choices == 1
+    
+    def before(self, kwargs):
+        pass
+
+    def get_items(self, data):
+        return (0,)
+
+class _BaseStrategy:
+
+    def before(self, kwargs):
+        kwargs["_setup_alert"] = self.setup_factory
+
+
+class _MultipleStrategy(_BaseStrategy):
+    accepts = lambda self, choices, min_select, max_select: max_select == -1 or\
+                                                            max_select > 1
+    setup_factory = SetupMultipleChoiceList
+
+    def get_items(self, dlg):
+        # Multiple selection
+        store = find_child_widget(dlg, "list_view").get_model()
+        return tuple(row.path[0] for row in store if row[0])
+
+class _RadioStrategy(_BaseStrategy):
+
+    accepts = lambda self, choices, min_select, max_select: choices < 5
+    setup_factory = SetupRadioChoiceList
+    
+    def get_items(self, dlg):
+        vbox = find_child_widget(dlg, "items")
+        counter = 0
+        for radio in vbox.get_children():
+            if radio.get_active():
+                break
+            counter += 1
+        assert radio.get_active()
+        
+        for radio in vbox.get_children():
+            vbox.remove(radio)
+            radio.destroy()
+
+        return (counter,)
+
+class _SingleListStrategy(_BaseStrategy):
+    accepts = lambda self, a, b, c: True
+    setup_factory = SetupSingleChoiceList
+    def get_items(self, dlg):
+        list_view = find_child_widget(dlg, "list_view")
+        rows = list_view.get_selection().get_selected_rows()[1]
+        get_element = lambda row: row[0]
+
+        items = tuple(map(get_element, rows))
+        
+_STRATEGIES = (_OneStrategy, _MultipleStrategy, _RadioStrategy,
+               _SingleListStrategy)
+_STRATEGIES = tuple(factory() for factory in _STRATEGIES)
+
+def choice(primary_text, secondary_text, parent=None, allow_cancel=True, \
+                                                      **kwargs):
+    """
+    @param items: the items you want to choose from
+    @param list_title: the title of the list. Optional.
+    @param allow_cancel: If the user can cancel/close the dialog.
+    @param min_select: The minimum number of elements to be selected.
+    @param max_select: The maximum number of elements to be selected.
+        -1 Means no limit.
+    
+    @param dialog_callback: This is a callback function that is going to be
+        called when the dialog is created. The argument is the dialog object.
+    @param one_item_text: when specified and if the number of `items` is one
+        this text will be the primary text. This string must contain a '%s'
+        which will be replaced by the item value.
+        Optional.
+    """
+
+    if "run" in kwargs:
+        del kwargs["run"]
+    
+    choices = len(kwargs["items"])
+    min_select = kwargs.get("min_select", 1)
+    max_select = kwargs.get("max_select", -1)
+
+    # Make sure the arguments are correct
+    assert choices > 0
+    assert (max_select == -1) ^ (min_select <= max_select <= choices)
+    assert 0 <= min_select <= choices
+    
+    buttons = (kwargs.get("ok_button", gtk.STOCK_OK), gtk.RESPONSE_OK)
+    
+    if allow_cancel:
+        buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL) + buttons
+    else:
+        # TODO: make closing the window impossible    
+        pass
+
+    if min_select == 0:
+        txt = N_("Don't select it", "Don't select any items", choices)
+        txt = kwargs.get("skip_button", txt)
+        buttons = (txt, gtk.RESPONSE_CLOSE) + buttons
+    
+    for strategy in _STRATEGIES:
+        if strategy.accepts(choices, min_select, max_select):
+            break
+    assert strategy.accepts(choices, min_select, max_select)
+    
+    if choices == 1:
+        if "one_item_text" in kwargs:
+            primary_text = kwargs["one_item_text"] % kwargs["items"][0]
+    
+    data = strategy.before(kwargs)
+    if data is not None:
+        primary_text = data
+    
+    dlg = hig_alert(
+        primary_text,
+        secondary_text,
+        parent = parent,
+        run = False,
+        buttons = buttons,
+        **kwargs
+    )
+    kwargs.get("dialog_callback", lambda foo: None)(dlg)
+    response = dlg.run()
+    
+    if response != gtk.RESPONSE_OK:
+        dlg.destroy()
+        return (), response
+    
+    items = strategy.get_items(dlg)
+    
+    dlg.destroy()
+    
+    return items, response
+    
+#############################
+# save_changes
+_MIN_FRACTION = 60
+_HOUR_FRACTION = 60 * _MIN_FRACTION
+_DAY_FRACTION = 24 * _HOUR_FRACTION
+def _humanize_seconds(elapsed_seconds, use_hours = True, use_days = True):
     """
     Turns a number of seconds into to a human readable string, example
     125 seconds is: '2 minutes and 5 seconds'.
@@ -401,9 +591,6 @@ def humanize_seconds(elapsed_seconds, use_hours = True, use_days = True):
     @param use_hours: wether or not to render the hours(if hours > 0)
     @param use_days: wether or not to render the days(if days > 0)
     """
-    MIN_FRACTION = 60
-    HOUR_FRACTION = 60 * MIN_FRACTION
-    DAY_FRACTION = 24 * HOUR_FRACTION
     
     text = []
     
@@ -412,20 +599,20 @@ def humanize_seconds(elapsed_seconds, use_hours = True, use_days = True):
     if duration == 0:
         return _("0 seconds")
     
-    days = duration / DAYS_FRACTION
+    days = duration / _DAY_FRACTION
     if use_days and days > 0:
         text.append(N_("%d day", "%d days", days) % days)
-        duration %= DAY_FRACTION
+        duration %= _DAY_FRACTION
         
-    hours = duration / HOUR_FRACTION
+    hours = duration / _HOUR_FRACTION
     if use_hours and hours > 0:
         text.append(N_("%d hour", "%d hours", hours) % hours)
-        duration %= HOUR_FRACTION
+        duration %= _HOUR_FRACTION
     
-    minutes = duration / MIN_FRACTION
+    minutes = duration / _MIN_FRACTION
     if minutes > 0:
         text.append(N_("%d minute", "%d minutes", minutes) % minutes)
-        duration %= MIN_FRACTION
+        duration %= _MIN_FRACTION
 
     seconds = duration % 60
     if seconds > 0:
@@ -455,14 +642,14 @@ class _TimeUpdater:
         # To translators %s is the time
         secondary_text = _("If you don't save, changes from the last %s "
                            "will be permanently lost.")
-        return secondary_text % humanize_seconds(last_changes.seconds)
+        return secondary_text % _humanize_seconds(last_changes.seconds)
         
         
     def on_tick(self):
         self.dialog.set_secondary_text(self.get_text())
         return True
-        
-def save_changes(files, last_save=None, parent=None, document=_("document"), documents=_("documents"), **kwargs):
+
+def save_changes(files, last_save=None, parent=None, **kwargs):
     """
     Shows up a Save changes dialog to a certain list of documents and returns
     a tuple with two values, the first is a list of files that are to be saved
@@ -486,7 +673,7 @@ def save_changes(files, last_save=None, parent=None, document=_("document"), doc
     depending on the arguments.
     
     Simple usage example::
-        files_to_save, response = save_changes(["foo.bar"])
+        files_to_save, response = save_changes(["foo.bar"], title="Rat Demo")
 
     @param files: a list of filenames to be saved
     @param last_save: when you only want to save one file you can optionally
@@ -494,99 +681,113 @@ def save_changes(files, last_save=None, parent=None, document=_("document"), doc
         
     @type last_save: datetime.datetime
     @param parent: the window that will be parent of this window.
-    @param document: the name of the document in the singular form. Default: 'document'
-    @param documents: the name of the document in the plural form. Default: 'documents'
-
+    @param primary_text: optional, see hig_alert.
+    @param secondary_text: optional, see hig_alert.
+    @param one_item_text: optional, see choice_alert.
+    @param list_title: optional, see choice_alert.
     @param kwargs: the remaining keyword arguments are the same as used on the function
         hig_alert.
     @return: a tuple with a list of entries the user chose to save and a gtk.RESPONSE_*
         from the dialog
     """
-    # Override the `run` argument
-    if "run" in kwargs:
-        del kwargs["run"]
+    primary_text = N_("There is %d file with unsaved changes. "
+                      "Save changes before closing?",
+                      "There are %d files with unsaved " 
+                      "changes. Save changes before closing?", len(files)) 
+
+    primary_text %= len(files)
     
-    if len(files) == 1:
-        # To translators: the first %s is 'document'(or what the user 
-        # provided), the second %s is the filename, you can change the
-        # order of these
-        primary_text = 'Save the changes to %(document)s "%(filename)s" before closing?'
-        primary_text %= {"document": document, "filename": files[0]}
+    primary_text = kwargs.get("primary_text", primary_text)
+    
+    secondary_text = _("If you don't save, all your changes will be "
+                       "permanently lost.")
+    
+    secondary_text = kwargs.get("secondary_text", secondary_text)
+
+    one_item_text = _("Save the changes to <i>%s</i> before closing?")
+    one_item_text = kwargs.get("one_item_text", one_item_text)
+    
+    list_title = _("Select the files you want to save:")
+    list_title = kwargs.get("list_title", list_title)
+    
+    if len(files) == 1 and last_save is not None:
+        updater = _TimeUpdater(last_save)
+        secondary_text = updater.get_text()
+        kwargs["dialog_callback"] = updater.set_dialog
         
-        if last_save is None:
-            secondary_text = _("If you don't save, your changes will be "
-                               "permanently lost.")
-        else:
-            updater = _TimeUpdater(last_save)
-            secondary_text = updater.get_text()
+    indexes, response = choice(
+        primary_text,
+        secondary_text,
+        min_select = 0,
+        max_select = -1,
+        skip_button = _("Close without saving"),
+        ok_button = gtk.STOCK_SAVE,
+        list_title = list_title,
+        items = files,
+        one_item_text = one_item_text,
+        **kwargs
+    )
 
-        if "title" in kwargs:
-            kwargs = {"title": kwargs["title"]}
-            
-        dialog = hig_alert(
-            primary_text,
-            secondary_text,
-            parent = parent,
-            stock = gtk.STOCK_DIALOG_WARNING,
-            buttons =(
-                _("Close without saving"), gtk.RESPONSE_CLOSE,
-                gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                gtk.STOCK_SAVE, gtk.RESPONSE_OK
-            ),
-            run = False,
-            **kwargs
+    return map(files.__getitem__, indexes), response
+
+#################
+# Common dialogs
+def error(primary_text, secondary_text, **kwargs):
+    return hig_alert(
+        primary_text,
+        secondary_text,
+        stock = gtk.STOCK_DIALOG_ERROR,
+        buttons =(gtk.STOCK_CLOSE, gtk.RESPONSE_OK),
+        **kwargs
+    )
+    
+
+def warning(primary_text, secondary_text, **kwargs):
+    return hig_alert(
+        primary_text,
+        secondary_text,
+        stock = gtk.STOCK_DIALOG_WARNING,
+        buttons =(gtk.STOCK_CLOSE, gtk.RESPONSE_OK),
+        **kwargs
+    )
+
+def ok_cancel(primary_text, secondary_text, ok_button=gtk.STOCK_OK, **kwargs):
+    return hig_alert(
+        primary_text,
+        secondary_text,
+        stock = gtk.STOCK_DIALOG_WARNING,
+        buttons =(
+            gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+            ok_button, gtk.RESPONSE_OK
+        ),
+        **kwargs
+    )
+
+def info(primary_text, secondary_text, **kwargs):
+    return hig_alert(
+        primary_text,
+        secondary_text,
+        stock = gtk.STOCK_DIALOG_INFO,
+        buttons =(gtk.STOCK_CLOSE, gtk.RESPONSE_OK),
+        **kwargs
+    )
+
+def listing(primary_text, secondary_text, parent=None, items=(), **kwargs):
+    """
+    @param list_title: A label will be placed above the list of items describing
+        what's the content of the list. Optional.
+    
+    Every other argument that L{hig_alert} function does.
+    
+    Example::
+        listing(
+            "Listing cool stuff",
+            "To select more of that stuff eat alot of cheese!",
+            items=["foo", "bar"] * 10, # Some random 20 elements
+            title="Rat Demo",
+            list_title="Your cool stuff:"
         )
-        
-        if last_save is not None:
-            updater.set_dialog(dialog)
-        
-        response = dialog.run()
-        dialog.destroy()
-
-        if response == gtk.RESPONSE_OK:
-            return files, response
-        else:
-            return(), response
-
-    else:
-        # To translators, '%(total)s' is the number of documents, %(documents)s
-        # is the word 'documents' or something similar. You can change the
-        # order of these wildcards.
-        primary_text = _("There are %(total)s %(documents)s with unsaved " 
-                         "changes. Save changes before closing?") %(
-            {"total": len(files), "documents": documents}
-        )
-        secondary_text = _("If you don't save, all your changes will be "
-                           "permanently lost.")
-
-        dlg = hig_alert(
-            primary_text,
-            secondary_text,
-            parent = parent,
-            stock = gtk.STOCK_DIALOG_WARNING,
-            buttons =(
-                _("Close without saving"), gtk.RESPONSE_CLOSE,
-                gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                gtk.STOCK_SAVE, gtk.RESPONSE_OK
-            ),
-            run = False,
-            files = files,
-            documents = documents,
-            _setup_alert = SetupFileListSaveAlert,
-            **kwargs
-        )
-
-        response = dlg.run()
-        dlg.destroy()
-        store = dlg.get_data("files_store")
-        if response == gtk.RESPONSE_CLOSE:
-            files =()
-        else:
-            files = tuple(filename for save_file, filename in store if save_file)
-        return files, response
-
-
-def list_dialog(primary_text, secondary_text, parent=None, items=(), *args, **kwargs):
+    """
     return hig_alert(
         primary_text,
         secondary_text,
@@ -595,6 +796,9 @@ def list_dialog(primary_text, secondary_text, parent=None, items=(), *args, **kw
         items = items,
         **kwargs
     )
+
+
+########
 
 class HigProgress(gtk.Window):
     """
@@ -680,7 +884,9 @@ class HigProgress(gtk.Window):
     close_button = property(lambda self: self._close)
     
     def set_primary_text(self, text):
-        self.primary_label.set_markup('<span weight="bold" size="larger">'+text+'</span>')
+        self.primary_label.set_markup(
+            '<span weight="bold" size="larger">'+text+'</span>'
+        )
         self.set_title(text)
     
     primary_text = property(fset = set_primary_text)
@@ -717,16 +923,36 @@ class HigProgress(gtk.Window):
         return True
         
 if __name__ == '__main__':
-    primary_text = "Listing cool stuff"
-    secondary_text = "To select more of that stuff eat alot of cheese!"
-    list_title = "Your cool stuff:"
     items = ["foo", "bar"] * 10
+    #items = ["foo", "bar"] * 2
+    #items = ["foo"]
+    primary_text = "Select an item"
+    if len(items) != 1:
+        secondary_text = "These items will aid you to do cool stuff"
+    else:
+        secondary_text = "This item will aid you to do cool stuff"
+    list_title = "Items:"
     window_title = "Rat Demo"
-    list_dialog(primary_text, secondary_text, items=items, title=window_title, list_title=list_title)
+    # Simple single selection choice
+    #choice_dialog(primary_text, secondary_text, items=items, title=window_title, list_title=list_title)
+    # Allows the user to not select any element
+    #choice_dialog(primary_text, secondary_text, items=items, title=window_title, list_title=list_title, min_select=0)
+    # The user must choose at least 2 elements
+#    print choice_dialog(
+#        primary_text,
+#        secondary_text,
+#        one_item_text = "Do you want to choose <i>%s</i>?",
+#        items=items,
+#        title=window_title,
+#        list_title=list_title,
+#        min_select=0,
+#        max_select=1,
+#        allow_cancel=False,
+#    )
 
-#    print save_changes(["foo"], title="goo")
-#    print dialog_ok_cancel("Rat will simplify your code",
-#                            ("By putting common utilities in one place all "
-#                             "benefit and get nicer apps.")) 
+#    print save_changes(["foo"], title="goo", last_save=datetime.datetime.now())
+    dlg = dialog_ok_cancel("Rat will simplify your code",
+                            ("By putting common utilities in one place all "
+                             "benefit and get nicer apps."), title="foo", run=False) 
 
 

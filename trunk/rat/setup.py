@@ -3,7 +3,7 @@ from setuptools import setup #, find_packages
 setup(
 	name = "Rat",
 	description = "Rat is a library for simplifying common tasks of PyGtk and gnome-python",
-	version = "0.1",
+	version = "0.2",
 	author = "Tiago Cogumbreiro",
 	author_email = "cogumbreiro@users.sf.net",
     url = "http://developer.berlios.de/projects/python-rat/",

@@ -1,3 +1,10 @@
+2006-03-04 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
+
+    * src/rat/hig.py:
+    Made some class names private (prefixed by an underscore).
+    The size of the list varies depending on the number of elements.
+    Corrected a bug on `save_changes` which would ignore `parent` argument.
+     
 2006-03-01 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
 
     * src/rat/hig.py:
@@ -18,8 +25,6 @@
     * src/rat/util.py:
     `find_parent_widget` and `find_child_widget` now raise `NotFoundError` when
     the widget is not found instead of `None`.
-    
-     
     
 2006-02-05 Tiago Cogumbreiro <cogumbreiro@users.sf.net>
 

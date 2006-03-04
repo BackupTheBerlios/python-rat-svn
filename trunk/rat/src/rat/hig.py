@@ -244,7 +244,7 @@ class SetupAlert(WidgetCostumizer):
     _run = _dialog_decorator(_run)
 
 
-class SetupRadioChoiceList(SetupAlert):
+class _SetupRadioChoiceList(SetupAlert):
     
     def _after_text(self, dialog, container):
         vbox = gtk.VBox(spacing=6)
@@ -291,14 +291,18 @@ class SetupListAlertTemplate(SetupAlert):
         scroll = SetupScrolledWindow()()
         scroll.add(tree)
         scroll.show()
+        scroll.set_name("scrolled_window")
         
         vbox.add(scroll)
 
         self.configure_widgets(dialog, tree)
-
+        count = len(tree.get_model())
+        # Update the size according to the number of elements on the list
+        if count > 5:
+            scroll.set_size_request(-1, min(154, 30 * count / 2))
         return dialog, vbox
 
-class SetupMultipleChoiceList(SetupListAlertTemplate):
+class _SetupMultipleChoiceList(SetupListAlertTemplate):
 
     _defaults = {
         "list_title": None
@@ -356,7 +360,7 @@ class SetupMultipleChoiceList(SetupListAlertTemplate):
         return store
 
 
-class SetupListAlert(SetupListAlertTemplate):
+class _SetupListAlert(SetupListAlertTemplate):
     
     _defaults = {
         "list_title": None
@@ -382,18 +386,18 @@ class SetupListAlert(SetupListAlertTemplate):
         return store
     
 
-class SetupSingleChoiceList(SetupListAlert):
+class _SetupSingleChoiceList(_SetupListAlert):
 
     _defaults = {
         "min_select": 1,
     }
     
-    _defaults.update(SetupListAlert._defaults)
+    _defaults.update(_SetupListAlert._defaults)
 
     def configure_widgets(self, dialog, tree):
         assert self.min_select in (0, 1)
         
-        SetupListAlert.configure_widgets(self, dialog, tree)
+        _SetupListAlert.configure_widgets(self, dialog, tree)
         selection = tree.get_selection()
 
         if self.min_select == 0:
@@ -459,7 +463,7 @@ class _BaseStrategy:
 class _MultipleStrategy(_BaseStrategy):
     accepts = lambda self, choices, min_select, max_select: max_select == -1 or\
                                                             max_select > 1
-    setup_factory = SetupMultipleChoiceList
+    setup_factory = _SetupMultipleChoiceList
 
     def get_items(self, dlg):
         # Multiple selection
@@ -469,7 +473,7 @@ class _MultipleStrategy(_BaseStrategy):
 class _RadioStrategy(_BaseStrategy):
 
     accepts = lambda self, choices, min_select, max_select: choices < 5
-    setup_factory = SetupRadioChoiceList
+    setup_factory = _SetupRadioChoiceList
     
     def get_items(self, dlg):
         vbox = find_child_widget(dlg, "items")
@@ -488,7 +492,7 @@ class _RadioStrategy(_BaseStrategy):
 
 class _SingleListStrategy(_BaseStrategy):
     accepts = lambda self, a, b, c: True
-    setup_factory = SetupSingleChoiceList
+    setup_factory = _SetupSingleChoiceList
     def get_items(self, dlg):
         list_view = find_child_widget(dlg, "list_view")
         rows = list_view.get_selection().get_selected_rows()[1]
@@ -718,6 +722,7 @@ def save_changes(files, last_save=None, parent=None, **kwargs):
     indexes, response = choice(
         primary_text,
         secondary_text,
+        parent = parent,
         min_select = 0,
         max_select = -1,
         skip_button = _("Close without saving"),
@@ -792,7 +797,7 @@ def listing(primary_text, secondary_text, parent=None, items=(), **kwargs):
         primary_text,
         secondary_text,
         parent = parent,
-        _setup_alert = SetupListAlert,
+        _setup_alert = _SetupListAlert,
         items = items,
         **kwargs
     )
@@ -934,11 +939,12 @@ if __name__ == '__main__':
     list_title = "Items:"
     window_title = "Rat Demo"
     # Simple single selection choice
-    #choice_dialog(primary_text, secondary_text, items=items, title=window_title, list_title=list_title)
+    #choice(primary_text, secondary_text, items=items, title=window_title, list_title=list_title)
     # Allows the user to not select any element
     #choice_dialog(primary_text, secondary_text, items=items, title=window_title, list_title=list_title, min_select=0)
     # The user must choose at least 2 elements
-#    print choice_dialog(
+    listing("This is a nice primary text", "bar", title="Rat", items=("foo", "bar")*20)
+#    print choice(
 #        primary_text,
 #        secondary_text,
 #        one_item_text = "Do you want to choose <i>%s</i>?",
@@ -951,8 +957,9 @@ if __name__ == '__main__':
 #    )
 
 #    print save_changes(["foo"], title="goo", last_save=datetime.datetime.now())
-    dlg = dialog_ok_cancel("Rat will simplify your code",
-                            ("By putting common utilities in one place all "
-                             "benefit and get nicer apps."), title="foo", run=False) 
+
+#    dlg = ok_cancel("Rat will simplify your code",
+#                            ("By putting common utilities in one place all "
+#                             "benefit and get nicer apps."), title="foo", run=False) 
 
 
